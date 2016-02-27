@@ -1,0 +1,152 @@
+///---------------------------------------------------------------------------
+// MicroDroplet.cpp
+//
+// Implementation of the MicroDroplet class.
+//
+// plk 07/28/2003
+//---------------------------------------------------------------------------
+#include "MicroDroplet.h"
+
+//---------------------------------------------------------------------------
+// MicroDroplet()
+//
+// Instantiates a MicroDroplet
+//
+// called by: TForm1::TForm1()
+//
+// plk 7/28/2003
+//---------------------------------------------------------------------------
+MicroDroplet::MicroDroplet(int inDiameter)
+{
+
+   Diameter = inDiameter;
+   InitializeActuatorList();
+
+
+}
+
+void MicroDroplet::Reset(int inDiameter)
+{
+    Diameter = inDiameter;
+    InitializeActuatorList();
+}
+
+
+
+//---------------------------------------------------------------------------
+// Command()
+//
+// Commands a microdroplet to a desired DACValue / Voltage
+//
+// called by: TForm1::DrawGrid1_OnSelectCell()
+//
+// plk 7/28/2003
+//---------------------------------------------------------------------------
+void MicroDroplet::Command(TObject *Sender,
+                           int      inRow,
+                           int      inColumn,
+                           DACInput inActuatorDACValue)
+{
+
+    theSystem->theMirror->CommandActuator(Sender,inRow,inColumn,inActuatorDACValue);
+
+    // actuate neighboring electrodes in actuator array; color the
+    // cell in the drawgridcell appropriately...
+    int  theGridCellRow;
+    int  theGridCellColumn;
+    for (int k=0;k<NumberOfActuators;k++)
+    {
+       theGridCellRow    = inRow + ActuatorIndexList[k][0];
+       theGridCellColumn = inColumn + ActuatorIndexList[k][1];
+
+       if ( theGridCellRow >= 0 &&
+            theGridCellRow < theSystem->theMirror->GetNumRows() &&
+            theGridCellColumn >=0 &&
+            theGridCellColumn < theSystem->theMirror->GetNumColumns())
+       {
+                 theSystem->theMirror->CommandActuator(Sender,
+                                             theGridCellRow,
+                                             theGridCellColumn,
+                                             inActuatorDACValue);
+       }
+
+    }
+
+}
+
+//---------------------------------------------------------------------------
+// InitializeActuatorList()
+//
+// Initializes the actuator list for the microdroplet.  Droplet diameter
+// must be set to an integer value before calling this method.
+//
+// called by:  MicroDroplet::MicroDroplet()
+//---------------------------------------------------------------------------
+void MicroDroplet::InitializeActuatorList()
+{
+
+   //  ActuatorIndexList[][]
+   //
+   //  Array of relative row, column indices that define the
+   //  subregion of the actuator array that controls the micro-
+   //  droplet.
+
+   //  i.e., if a droplet is centered on actuator (i,j) then this
+   //  array specifies which neighboring actuators are included
+   //  within the droplet, relative to the central actuator.
+   //
+   //  [k][0] element of this array is the relative row index
+   //  [k][1] element of this array is the relative column index
+
+  NumberOfActuators = Diameter*Diameter;
+
+  int k=0;
+
+  int    theNumXActuators = Diameter;
+  int    theNumYActuators = Diameter;
+  double theTestRadius;
+
+  double theDropletDiameter = Diameter;
+  double theDropletRadius = theDropletDiameter/2;
+  double theDropletCenter_i = theDropletDiameter/2;
+  double theDropletCenter_j = theDropletDiameter/2;
+  int i_rel, j_rel;
+
+
+  // cycle through rectangular array of relative actuator
+  // positions.  Test each actuator position to see if it
+  // is within the desired droplet radius.  If it is, then
+  // update the actuator index list with the current
+  // relative actuator position.
+  for (int j=0;j<theNumYActuators;j++)
+  {
+     // deftly takes care of 1.5 --> 1.0 rounding problem
+     j_rel = ceil(j-theDropletCenter_j);
+
+     for (int i=0;i<theNumXActuators;i++)
+     {
+        k=theNumXActuators*j + i;
+
+        // deftly takes care of 1.5 --> 1.0 rounding problem
+        i_rel= ceil(i-theDropletCenter_i);
+        theTestRadius = sqrt( i_rel*i_rel + j_rel*j_rel);
+
+        // if actuator position is within the desired droplet
+        // radius, then set the AcuatorIndex list with the
+        // current actuator position (relative row, column)
+        if (theTestRadius <= theDropletRadius )
+        {
+           ActuatorIndexList[k][0] = i_rel;
+           ActuatorIndexList[k][1] = j_rel;
+        } else
+        {
+           ActuatorIndexList[k][0] = 0;
+           ActuatorIndexList[k][1] = 0;
+        }
+     }
+  }
+
+  return;
+}
+
+

@@ -1,0 +1,35 @@
+//-------------------------------------------------------------------------
+// TypeDefs.h
+//
+// Contains type definitions for DeformableMirror class and related classes.
+//
+// plk 10/31/00
+//-------------------------------------------------------------------------
+
+#ifndef TYPEDEFS
+#define TYPEDEFS
+
+#include <system.hpp>
+#include "VMEmethods.h"  //for bt_data16_t
+
+   // general types
+   typedef int Int32;
+   typedef float Float32;
+   typedef char* MyString;
+
+
+   // types used in MEMSDevice
+   typedef int          FileError;
+   typedef Int32        ArrayIndex;
+
+
+   // types used in Actuator class
+   typedef Float32      ActuatorVoltage;
+   //typedef AnsiString     ActuatorStatus;
+   typedef Int32        ActuatorColor;
+   typedef bt_data16_t  DACInput;
+
+
+
+#endif
+//-------------------------------------------------------------------------

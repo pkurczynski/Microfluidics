@@ -1,0 +1,235 @@
+//-------------------------------------------------------------------------
+// Array2d.h                            C++ Template Header/Implementation
+//
+// class template definition and implementation of the Array2d class
+// template.  This class template provides a generic 2d array class
+// for storing a 2d array of objects of arbitrary type.
+//
+// See C++ Tutorial\DM Prototype for an example program/implementation.
+//
+// Array2d class template features array bounds checking, and should
+// be compiled with SubscriptRangeError class implementation file (.cpp)
+// and header file (.h).  To trap exceptions, use the try{...}
+// catch(SubscriptRangeError &e){...} syntax.  See DM Prototype program
+// folder for an example.
+//
+// class template features/member functions:
+//
+//     data member access with ()  e.g.  theElementArray(0,1).GetVoltage();
+//              executes GetVoltage() of the (0,1) class of theElementArray
+//
+//     display entire array with Display().  e.g. theElementArray.Display();
+//              displays the entire array.  Note that if Array2d object
+//              consists of class elements, as opposed to float's or int's,
+//              for example, then the class element must overload the
+//              << operator in order for Display() to function.
+//
+//     access private data with public accessor functions.  GetNumRows()
+//              returns the number of rows in an Array2d object etc.
+//
+//
+//
+// version 1
+// plk 01/12/2004
+//-------------------------------------------------------------------------
+#ifndef ARRAY2D
+#define ARRAY2D
+
+#include <iostream.h>
+#include "TypeDefs.h"
+#include "SubscriptRangeError.h"
+
+
+template<class T>
+class Array2d
+{
+   private:
+
+        Int32 NumRows;
+        Int32 NumColumns;
+        Int32 NumElements;
+
+        T* PtrToData;
+
+   public:
+        Array2d(Int32 inNumRows, Int32 inNumColumns);
+        ~Array2d();
+        T& operator()(Int32 inRowSubscript, Int32 inColumnSubscript);
+        Int32 GetNumElements();
+        Int32 GetNumRows();
+        Int32 GetNumColumns();
+        void Display();
+
+        //friend ostream& operator<<(ostream& ioData, Array2d<T>& inArray);
+
+};
+
+
+
+//---------------------------------------------------------------------------
+// Array2d()
+//
+// Creates an Array2d with inNumElements elements
+//
+//---------------------------------------------------------------------------
+template<class T>
+Array2d<T>::Array2d(Int32 inNumRows, Int32 inNumColumns)
+{
+
+   NumRows = inNumRows;
+   NumColumns = inNumColumns;
+   NumElements = NumRows * NumColumns;
+
+   PtrToData = new T[NumElements];
+
+   // DEBUG
+   //cout << "OK.  Created an Array2d\n";
+
+}
+//---------------------------------------------------------------------------
+
+
+
+//---------------------------------------------------------------------------
+// Operator()()
+//
+// Overloads the () operator to handle
+// subscripting of elements in a Array2d
+//
+//---------------------------------------------------------------------------
+template<class T>
+T& Array2d<T>::operator()(Int32 inRow, Int32 inColumn)
+{
+
+   Int32 RowErr = ( inRow < 0 || inRow > NumRows -1 );
+   Int32 ColumnErr = ( inColumn < 0 || inColumn > NumColumns -1 );
+   if (RowErr && ColumnErr)
+        throw SubscriptRangeError(inRow, inColumn, 2);
+   else
+   {
+      if (RowErr)
+         throw SubscriptRangeError(inRow,inColumn,0);
+      if (ColumnErr)
+         throw SubscriptRangeError(inRow,inColumn,1);
+   }
+
+
+   Int32 theOffset = NumColumns * inRow + inColumn;
+   return PtrToData[theOffset];
+}
+//---------------------------------------------------------------------------
+
+
+
+
+
+//---------------------------------------------------------------------------
+// GetNumElements()
+//
+//---------------------------------------------------------------------------
+template<class T>
+Int32 Array2d<T>::GetNumElements()
+{
+   return NumElements;
+}
+//---------------------------------------------------------------------------
+
+
+
+//---------------------------------------------------------------------------
+// GetNumRows()
+//
+//---------------------------------------------------------------------------
+template<class T>
+Int32 Array2d<T>::GetNumRows()
+{
+   return NumRows;
+}
+//---------------------------------------------------------------------------
+
+
+//---------------------------------------------------------------------------
+// GetNumColumns()
+//
+//---------------------------------------------------------------------------
+template<class T>
+Int32 Array2d<T>::GetNumColumns()
+{
+   return NumColumns;
+}
+//---------------------------------------------------------------------------
+
+
+//---------------------------------------------------------------------------
+// ~Array2d()
+//
+// destroys a Array2d, frees allocated memory
+//
+//---------------------------------------------------------------------------
+template<class T>
+Array2d<T>::~Array2d()
+{
+   delete [] PtrToData;
+}
+//---------------------------------------------------------------------------
+
+
+
+
+
+//---------------------------------------------------------------------------
+// Display()
+//
+// Displays the elements of a Array2d
+//
+//---------------------------------------------------------------------------
+template<class T>
+void Array2d<T>::Display()
+{
+  Int32 theOffset;
+
+  cout << "\n";
+        for (Int32 i=0;i<NumRows;i++)
+        {
+             for (Int32 j=0;j<NumColumns;j++)
+             {
+                  theOffset = NumColumns*i + j;
+                  cout << PtrToData[theOffset] << "\t";
+             }
+             cout << "\n";
+        }
+}
+//---------------------------------------------------------------------------
+
+#if 0
+//---------------------------------------------------------------------------
+// operator<<
+//
+// overloads the << operator to allow sending an Array2d<T> to
+// an output stream.  Note:  In order for << to work, it must
+// also be defined in the type class <T>.
+//
+//---------------------------------------------------------------------------
+template<class T>
+ostream& operator<<(ostream& ioData, Array2d<T>& inArray)
+{
+    ioData << endl;
+
+    for (Int32 i=0;i<inArray.GetNumRows();i++)
+    {
+         for (Int32 j=0;j<inArray.GetNumColumns();j++)
+         {
+              ioData << inArray(i,j) << endl;
+         }
+         ioData << endl << endl;
+    }
+
+
+    return ioData;
+}
+//---------------------------------------------------------------------------
+#endif
+
+
+#endif
+//---------------------------------------------------------------------------

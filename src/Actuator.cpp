@@ -1,0 +1,411 @@
+//-------------------------------------------------------------------------
+// Actuator.cpp
+//
+// Implementation of the Actuator class
+//
+//
+// plk 10/31/00
+//-------------------------------------------------------------------------
+#include "Actuator.h"
+#include "WireListData.h"
+#include "Unit1.h"
+#include "Unit5.h"  // for ViewActuatorForm
+#include "VMEmethods.h"
+#include "MEMSystem.h"
+#include "MEMSDevice.h"
+
+// static voltage, DACValue limits:  These values pertain for
+// every instance of Actuator class.   They are not duplicated
+// for each instance, however.
+ActuatorVoltage Actuator::MaxVoltage = 180;
+ActuatorVoltage Actuator::MinVoltage = 0;
+
+DACInput Actuator::MaxDACValue = 8191;
+DACInput Actuator::MinDACValue = 0;
+
+
+//-------------------------------------------------------------------------
+// Actuator()
+//
+//-------------------------------------------------------------------------
+Actuator::Actuator()
+{
+   Reset();
+
+}
+
+//-------------------------------------------------------------------------
+// ~Actuator()
+//
+// Destructor declared virtual if Actuator contains
+// virtual member functions.  See Bramer & Bramer p. 365
+//-------------------------------------------------------------------------
+Actuator::~Actuator()
+{
+   // destroy the Actuator here
+
+}
+
+
+
+//-------------------------------------------------------------------------
+// Set()
+//
+// Sets the actuator DACValue and the corresponding voltage.  DOES NOT
+// SEND THE DACValue TO THE VME BUS/DAC.  Uses the Calibration coefficents
+// for the MEMSDevice:  VoltsToDAC[2]
+//
+// called by:  MEMSDevice::ZernikeShape()
+//
+//-------------------------------------------------------------------------
+void Actuator::Set(DACInput inNewDACValue)
+{
+
+    DACValue = inNewDACValue;
+
+    Update();
+
+}
+//-------------------------------------------------------------------------
+
+
+
+//-------------------------------------------------------------------------
+// Set()
+//
+// Initializes wire list data for the actuator.  Sets the actuator
+// DAC channel, DAC card etc.
+//
+// called by:  MEMSystem::Set  (illegal access if Actuator is
+//                              private w/in MEMSDevice)
+//-------------------------------------------------------------------------
+void Actuator::Set(WireListData inWireListData)
+{
+   ActuatorID = inWireListData.ActuatorID;
+
+
+   // NOTE:  Row, Column of actuator are set from the wirelist data
+   // row, column.  These latter indices have range [-18...18] NOT
+   // [0...36] as they should for correct array indexing in software.
+
+   Row = inWireListData.Row;
+   Column = inWireListData.Column;
+
+   ChpPad = inWireListData.ChpPad;
+   PkgPad = inWireListData.PkgPad;
+   Socket = inWireListData.Socket;
+   Connector = inWireListData.Connector;
+   DAC = inWireListData.DAC;
+   Chip = inWireListData.Chip;
+   Module = inWireListData.Module;
+   Type = inWireListData.Type;
+
+   Initialized = true;
+
+   DACValue = 0;
+
+   Update();
+
+}
+//-------------------------------------------------------------------------
+
+
+
+//-------------------------------------------------------------------------
+// Reset()
+//
+// Sets all actuator data members to their default state.
+//
+// called by:  Actuator(), MEMSDevice::Reset,
+//-------------------------------------------------------------------------
+void Actuator::Reset()
+{
+
+   Row=9999;
+   Column=9999;
+   ChpPad=9999;
+   PkgPad=9999;
+   Socket="theSocket***********";
+   Connector="theConnector*****";
+   DAC=9999;
+   Chip=9999;
+   Module=9999;
+
+   // set status from wire list data here!
+   Type = "Unknown";
+   Status = "Reset";
+
+   Initialized = false;
+
+   DACValue = 0;
+   Voltage = 0;
+
+
+   return;
+}
+//-------------------------------------------------------------------------
+
+
+//-------------------------------------------------------------------------
+// Add()
+//
+// Adds a DAC Value to the current Actuator DAC Value.
+// Updates the Actuator voltage property.
+//
+// called by:
+//
+//-------------------------------------------------------------------------
+void Actuator::Add(DACInput inAddDACValue)
+{
+        DACValue +=inAddDACValue;
+
+        Update();
+
+}
+
+
+//-------------------------------------------------------------------------
+// Show()
+//
+// Displays actuator state in the "Current Actuator" graphics window
+//
+// arguments:  ioColumnDisplay, ioRowDisplay, ioVoltageDisplay,
+//              ioTypeDisplay, ioStatusDisplay are
+//              pointers to the TStaticText objects where the Actuator
+//              properties will be displayed on the main graphics window.
+//
+// called by:  MEMSDevice::DisplayFocusActuator()
+//-------------------------------------------------------------------------
+void Actuator::Show(    TStaticText *ioRowDisplay,
+                        TStaticText *ioColumnDisplay,
+                        TStaticText *ioVoltageDisplay,
+                        TStaticText *ioTypeDisplay,
+                        TStaticText *ioStatusDisplay,
+                        TStaticText *ioActuatorIDDisplay,
+                        TStaticText *ioDACValueDisplay)
+{
+
+   ioColumnDisplay->Caption = IntToStr(Column);
+   ioRowDisplay->Caption = IntToStr(Row);
+   ioVoltageDisplay->Caption = FormatFloat("0.000",Voltage);
+   ioTypeDisplay->Caption = Type;
+   ioStatusDisplay->Caption = Status;
+   ioActuatorIDDisplay->Caption = ActuatorID;
+   ioDACValueDisplay->Caption = DACValue;
+}
+//-------------------------------------------------------------------------
+
+
+
+//-------------------------------------------------------------------------
+// Actuate()
+//
+// Sends the actuator voltage to the DAC channel via the VME Bus
+// Uses modules:  BIT3_API.lib, VMEmethods.cpp
+//
+// called by:  MEMSDevice::ActuateDevice()
+//
+//-------------------------------------------------------------------------
+void Actuator::Actuate()
+{
+
+AnsiString theOffendingActuator;
+
+theOffendingActuator =  "Row: "+IntToStr(Row)+
+                        "  Column: "+IntToStr(Column) + "  Status:";
+
+   if ( Status == "OK" )
+   {
+        // parameters:  Crate: crate ID
+        //              Module:  specifies which DAC Card (0...31)
+        //              Chip:  specifies which Chip on DAC card (0...7)
+        //              DAC: specifies which DAC on chip (0...7)
+        //              DACValue:  the desired DAC value
+        //              Delay:  (in milliseconds)
+#if HARDWAREENABLED
+        SetDAC(0,Module,Chip,DAC,DACValue,0);
+#endif
+
+   } else if ( Status == "VoltageOutOfRange" )
+   {
+        theSystem->MEMSystemMessage->Lines->Add(theOffendingActuator);
+        theSystem->MEMSystemMessage->Lines->Add(Status);
+        theSystem->MEMSystemMessage->Lines->Add("Actuator attempt failed!");
+
+   } else if ( Status == "DACValueOutOfRange" )
+   {
+        theSystem->MEMSystemMessage->Lines->Add(theOffendingActuator);
+        theSystem->MEMSystemMessage->Lines->Add(Status);
+        theSystem->MEMSystemMessage->Lines->Add("Actuator attempt failed!");
+
+   } else
+   {
+        //theSystem->MEMSystemMessage->Lines->Add(theOffendingActuator);
+        //theSystem->MEMSystemMessage->Lines->Add(Status);
+   }
+
+}
+//-------------------------------------------------------------------------
+
+
+//-------------------------------------------------------------------------
+// Update()
+//
+// Checks to see that the Actuator's data members are within allowed
+// range, and that actuator can be safely actuated.  ErrorCode must be
+// zero for actuator to actuate.  See include file for glossary of
+// error codes.
+//
+// called by:  Set(), Reset(), Add()
+//-------------------------------------------------------------------------
+void Actuator::Update()
+{
+
+    // Set voltage property using MEMSDevice Calibration
+    //
+    // CAUTION:  This method uses data members from MEMSDevice
+    // that are initialized in the MEMSDevice Constructor.  Therefore
+    // this method should not be called in the Actuator constructor,
+    // which is instantiated using an initializer list BEFORE the MEMSDevice
+    // constructor executes.
+    Voltage = theSystem->theMirror->ConvertDACValueToVolts(DACValue);
+
+    // check that new DAC Value is within bounds, and corresponding
+    // voltage is also within bounds.  Set actuator Status property
+    // to reflect any errors.
+    if (DACValue > MaxDACValue || DACValue < MinDACValue)
+    {
+         Status = "DACValueOutOfRange";
+    } else if (Voltage > MaxVoltage || Voltage < MinVoltage)
+    {
+         Status = "VoltageOutOfRange";
+    }
+
+    // this condition modified for using large 1024 electrode chip
+    // wire list.  
+    if (Type != "ELECTRODE" )
+    {
+         Status = Type;
+    } else
+    {
+        Status = "OK";
+    }
+
+
+}
+//-------------------------------------------------------------------------
+
+
+
+//-------------------------------------------------------------------------
+// GetStatus()
+//
+// Returns an actuator's status
+//
+// called by:
+//-------------------------------------------------------------------------
+AnsiString Actuator::GetStatus()
+{
+     return Status;
+}
+//-------------------------------------------------------------------------
+
+
+
+
+//-------------------------------------------------------------------------
+// operator<<
+//
+// Writes an actuator object to a stream.  For saving data to a file.
+// See MEMSystem::SaveConfiguration()
+//
+// called by: (MEMSDevice)  operator<<
+//
+//-------------------------------------------------------------------------
+ostream& operator<<(ostream& ioData, Actuator& inActuator)
+{
+   ioData << inActuator.ActuatorID << endl;
+   ioData << inActuator.Row << endl;
+   ioData << inActuator.Column << endl;
+   ioData << inActuator.ChpPad << endl;
+   ioData << inActuator.PkgPad << endl;
+   ioData << inActuator.Socket << endl;
+   ioData << inActuator.Connector << endl;
+   ioData << inActuator.DAC << endl;
+   ioData << inActuator.Chip << endl;
+   ioData << inActuator.Module << endl;
+   ioData << inActuator.Type << endl;
+   ioData << inActuator.DACValue << endl;
+   ioData << inActuator.Voltage << endl;
+   ioData << inActuator.Status << endl;
+   ioData << inActuator.Initialized << endl;
+
+   return ioData;
+}
+
+//-------------------------------------------------------------------------
+
+
+
+//-------------------------------------------------------------------------
+// operator>>
+//
+// Writes contents of a stream to an actuator object.  Used in retrieving
+// data from file.  See MEMSystem::OpenConfiguration()
+//
+// called by: (MEMSDevice)  operator>>
+//
+//-------------------------------------------------------------------------
+istream& operator>>(istream& ioData, Actuator& outActuator)
+{
+   ioData >> outActuator.ActuatorID;
+   ioData >> outActuator.Row;
+   ioData >> outActuator.Column;
+   ioData >> outActuator.ChpPad;
+   ioData >> outActuator.PkgPad;
+
+   // Pin is an AnsiString; for these data types the >> operator
+   // will give confusing results.  Therefore use temporary
+   // char * type   See note below.
+
+   char theSocketString[10];
+   ioData >> theSocketString;
+   outActuator.Socket.sprintf(theSocketString);
+
+   char theConnectorString[10];
+   ioData >> theConnectorString;
+   outActuator.Connector.sprintf(theConnectorString);
+
+   ioData >> outActuator.DAC;
+   ioData >> outActuator.Chip;
+   ioData >> outActuator.Module;
+
+   char theTypeString[15];
+   ioData >> theTypeString;
+   outActuator.Type.sprintf(theTypeString);
+
+   ioData >> outActuator.DACValue;
+   ioData >> outActuator.Voltage;
+
+
+   // THIS NOTE FOR FUTURE REFERENCE:  Status data member has
+   // been removed from Actuator class plk 6/29/2001
+   // re-instated plk 1/8/03
+   //
+   // see note above for Pin.  Confusing behavior when using
+   // << on AnsiString types.
+   // WARNING:  this syntax works for reading in a string,
+   //           provided there are no spaces in it! Separate
+   //           words using "_" for instance.
+
+   char theCharStatus[50];
+   ioData >> theCharStatus;
+   outActuator.Status.sprintf(theCharStatus);
+
+   ioData >> outActuator.Initialized;
+
+   return ioData;
+
+}
+//-------------------------------------------------------------------------
+

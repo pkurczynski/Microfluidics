@@ -1,0 +1,27 @@
+Contents of Membrane256Selector\Release\Version 1
+
+
+
+( Program files from ..\Prototype\Version 1 )
+
+
+Program for operating a small 256 membrane mirror
+device in open loop using the VME Crate and 64
+channel DAC cards / SCSI cable interconnects.
+
+
+
+Wire List:
+
+wirelist information should be found
+in the following local directory:
+
+
+D:\WirelistDatabase\MembraneSmall256Device\
+DACToChipWireList.dbf
+
+This wire list was created from the excel file:
+
+Small256WireListTemplate_08_26_2002_C_v3.xls
+
+

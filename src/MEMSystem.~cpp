@@ -1,0 +1,420 @@
+//---------------------------------------------------------------------------
+// MEMSystem.cpp
+//
+// Implementation file for MEMSystem class.
+//
+// plk 11/25/00
+//---------------------------------------------------------------------------
+
+#include <fstream.h>
+#include <iostream.h>
+#include <vcl.h>
+#pragma hdrstop
+
+#include "Unit1.h"
+#include "MEMSystem.h"
+#include "MEMSDevice.h"
+#include "Unit3.h"
+#include "WireListData.h"
+#include "VMEmethods.h"
+
+MEMSystem *theSystem;
+
+//---------------------------------------------------------------------------
+
+#pragma package(smart_init)
+
+
+MEMSystem::MEMSystem()
+{
+   MEMSystemMessage = Form1->Memo1;
+   MEMSystemMessage->Lines->Add("Created a MEMSystem");
+
+
+   SetConfigFile("allocatelotsofspaceforlongfilenamesallocatelotsofspaceforlongfilenames");
+
+
+   NumWires = 9999;
+   WireListName = "allocatelotsofspaceforlongwirelistnames";
+   WireListPath = "allocatelotsofspaceforlongpathnamesallocatelotsofspaceforlongpathnamesallocatelotsofspaceforlongpathnames";
+
+
+
+
+
+   theMirror = new MEMSDevice;
+   MEMSystemMessage->Lines->Add("Created a MEMSDevice");
+
+
+
+   NumDACValues = 8192;
+
+   CreateVME();
+
+}
+
+
+
+MEMSystem::~MEMSystem()
+{
+
+   delete theMirror;
+
+   DeleteVME();
+
+
+}
+
+
+
+//---------------------------------------------------------------------------
+// InitializeWireList()
+//
+// Sets each actuators Wire List Address
+//
+// argument:  *inWireListTable          Wire List Table created by
+//                                      datamodule.  See Unit3.cpp
+// called by:  Reset()
+//             TDataModule3::DataModuleCreate()  on program startup
+//
+// modified wire list column headers to be compatible with 1024 wire
+// lise for microfluidics chip.  plk 10/25/2003
+//---------------------------------------------------------------------------
+void MEMSystem::InitializeWireList(TTable *inWireListTable)
+{
+
+
+   WireListData theWireListData;
+
+   inWireListTable->Open();
+   inWireListTable->First();
+
+
+   WireListName = inWireListTable->TableName;
+   WireListPath = inWireListTable->DatabaseName;
+   NumWires = inWireListTable->RecordCount;
+
+
+   int theCurrentRow;
+   int theCurrentColumn;
+   int theCurrentPad;
+   Variant theCurrentPin;
+   int theCurrentChannel;
+
+   ArrayIndex i;
+   ArrayIndex j;
+   while (!inWireListTable->Eof)
+   {
+        theWireListData.ActuatorID = inWireListTable->FieldValues["INDEX"];
+        theWireListData.Row = inWireListTable->FieldValues["Y-VALUE"];
+        theWireListData.Column = inWireListTable->FieldValues["X-VALUE"];
+        theWireListData.ChpPad = inWireListTable->FieldValues["CHIPPAD"];
+        theWireListData.PkgPad = inWireListTable->FieldValues["PKGPAD"];
+        theWireListData.Socket = inWireListTable->FieldValues["PKGPIN"];
+        theWireListData.Connector = inWireListTable->FieldValues["MEGA"];
+        theWireListData.DAC = inWireListTable->FieldValues["DAC"];
+        theWireListData.Chip = inWireListTable->FieldValues["CHIP"];
+        theWireListData.Module = inWireListTable->FieldValues["MODULE"];
+        theWireListData.Type = inWireListTable->FieldValues["TYPE"];
+
+        // wire list X,Y Values are indexed from -18...18 for compatibility
+        // with large, hand drawn diagram of electrode array on green
+        // drafting paper.  Convert these x,y values to 0...36 for
+        // addressing array of actuators correctly.   plk 10/25/2003
+        i=theWireListData.Row + 18;
+        j=theWireListData.Column + 18;
+
+        theMirror->theActuatorArray(i,j).Set(theWireListData);
+
+        inWireListTable->Next();
+   }
+
+}
+//---------------------------------------------------------------------------
+
+
+//---------------------------------------------------------------------------
+// CreateVME()
+//
+// Initializes the VME bus and DAC.  Reports status to the GUI memo window.
+// Uses modules:  BIT3_API.lib, VMEmethods.cpp
+//
+// called by: MEMSystem (constructor)
+//---------------------------------------------------------------------------
+void MEMSystem::CreateVME()
+{
+
+#if HARDWAREENABLED
+   // initialize the DAC
+   // TMemo *lpmemo = Form1->Memo1;
+   int rarg;
+
+    while((rarg=VMECtrl())==mrRetry);
+    if (rarg == mrAbort)
+        exit(0);
+    MEMSystemMessage->Lines->Add("VMECtrl Complete");
+    //lpmemo->Refresh();
+    DACReset();
+    MEMSystemMessage->Lines->Add("DAC Reset Complete");
+    //lpmemo->Refresh();
+
+    if(hvdac == HVDAC16)
+    {
+        //CrateUD->Visible = false;
+        //CrateEB->Visible = false;
+        //CrateLab->Visible = false;
+    }
+
+    // end of DAC initialization code
+
+    MEMSystemMessage->Lines->Add("Created VME Interface");
+#else
+    MEMSystemMessage->Lines->Add("VME Interface Not Established.  Hardware disabled.");
+#endif
+
+}
+//---------------------------------------------------------------------------
+
+
+//---------------------------------------------------------------------------
+// DeleteVME()
+//
+// Closes the VME interface.  Sends report to the GUI memo window.
+//
+// Uses modules:  BIT3_API.lib, VMEmethods.cpp
+//
+// Called by:  ~MEMSystem (destructor)
+//---------------------------------------------------------------------------
+void MEMSystem::DeleteVME()
+{
+#if HARDWAREENABLED
+   bt_cleanup();
+   MEMSystemMessage->Lines->Add("VME interface has been shutdown");
+#endif
+}
+//---------------------------------------------------------------------------
+
+
+
+
+//---------------------------------------------------------------------------
+// Actuate()
+//
+// Actuates a MEMSsystem by calling the appropriate MEMSDevice
+// actuate method.  Writes message to the MEMSystemMessage window.
+//
+// called by:  TForm1::OnButton1Click()
+//
+//---------------------------------------------------------------------------
+void MEMSystem::Actuate()
+{
+#if HARDWAREENABLED
+   theMirror->ActuateDevice();
+   MEMSystemMessage->Lines->Add("Actuated Device");
+#else
+   MEMSystemMessage->Lines->Add("Device Did Not Actuate.  Hardware disabled.");
+#endif
+
+}
+//---------------------------------------------------------------------------
+
+
+
+//---------------------------------------------------------------------------
+// Reset()
+//
+// Sets all MEMSystem data members to default values.
+// Calls individual Actuator Reset methods.  Initializes Actuator array
+// to the Wire List by calling InitializeWireList()
+//
+// called by: Form1::FileNewExecute()
+//---------------------------------------------------------------------------
+void MEMSystem::Reset()
+{
+
+  MEMSystemMessage->Lines->Add("Reset MEMSystem");
+
+  ConfigFile.sprintf("Config File");
+
+  theMirror->Reset();
+
+  // assign DAC card, channel, row, column and other information
+  // to each actuator based on data stored in the WireList database
+  // (loaded in from WireList.dbf during program startup).
+  InitializeWireList(DataModule3->Table1);
+
+}
+//---------------------------------------------------------------------------
+
+
+
+
+//---------------------------------------------------------------------------
+// OpenConfiguration()
+//
+// Opens the MEMSystem configuration file, loads in header information
+// as well as Actuator data for each Actuator in the Actuator array.
+//
+// Configuration file format:
+//
+//
+// argument:  inFileName        name of the configuration file
+//
+// called by: Form1::FileOpenExecute()
+//---------------------------------------------------------------------------
+void MEMSystem::OpenConfiguration(AnsiString inFileName)
+{
+   ArrayIndex theNumRows;
+   ArrayIndex theNumColumns;
+
+   theMirror->Reset();
+
+   fstream infile(inFileName.c_str(), ios::in);
+
+
+   if (infile.fail())
+   {
+      MEMSystemMessage->Lines->Add("ERROR Opening Configuration File!");
+   }
+   else
+   {
+
+      char theCharStringName[MAXNAMELENGTH];
+      infile.getline(theCharStringName,MAXNAMELENGTH);
+      ConfigFile.sprintf(theCharStringName);
+
+      infile >> theNumRows;
+      theMirror->SetNumRows(theNumRows);
+
+      infile >> theNumColumns;
+      theMirror->SetNumColumns(theNumColumns);
+
+      // header spacer is "----------" (10 "-"s), plus
+      // terminating '\0' requires 12 Actuator char array
+      char theHeaderSpacer[20];
+      infile >> theHeaderSpacer;
+
+
+      infile >> *theMirror;
+
+
+      MEMSystemMessage->Lines->Add("Opened Configuration File");
+   }
+
+   infile.close();
+
+}
+//---------------------------------------------------------------------------
+
+
+
+//---------------------------------------------------------------------------
+// SaveConfiguration()
+//
+// Saves the MEMSystem configuration as a text file.
+// See OpenConfigFile() for file format:
+//
+// Argument:  inFilePath        complete path (drive:\dir\name.ext)
+//                              of the configuration file
+//
+// called by:   Form1::FileSaveExecute()
+//              Form1::FileSaveAsExecute()
+//---------------------------------------------------------------------------
+void MEMSystem::SaveConfiguration(AnsiString inFilePath, bool inNewConfig)
+{
+
+
+   // File|Save calls this member function with inFileName = "No New File"
+   // and inNewConfig = FALSE
+   // File|Save As... calls this member function with the selected
+   // filename as argument and inNewConfig = TRUE
+   if (inNewConfig)
+   {
+        SetConfigFile(inFilePath);
+   }
+
+   fstream iofile(ConfigFile.c_str(), ios::out);
+
+   if (iofile.fail())
+   {
+      MEMSystemMessage->Lines->Add("ERROR Saving Configuration File!");
+   }
+   else
+   {
+
+      iofile << ConfigFile << endl;
+      iofile << theMirror->GetNumRows() << endl;
+      iofile << theMirror->GetNumColumns() << endl;
+      iofile << "----------" << endl;
+
+
+      // write the MEMSDevice to the file stream using
+      // operator<< overloaded for MEMSDevice.  See MEMSDevice.cpp
+      // NOTE:  theMirror is a pointer to a MEMSDevice, hence the
+      // proper syntax for calling the overloaded operator<< invokes
+      // a de-reference (i.e.  *theMirror instead of theMirror)
+
+      iofile << *theMirror << endl;
+
+      iofile.close();
+
+      MEMSystemMessage->Lines->Add("Saved Configuration File");
+
+   }
+
+
+}
+//---------------------------------------------------------------------------
+
+
+
+
+//---------------------------------------------------------------------------
+// GetConfigFile()
+//
+// called by:  Form1::FileOpenExecute()
+//---------------------------------------------------------------------------
+AnsiString MEMSystem::GetConfigFile()
+{
+   return ConfigFile;
+}
+//---------------------------------------------------------------------------
+
+
+//---------------------------------------------------------------------------
+// SetConfigFile()
+//
+// called by: Form1::FileSaveAsExecute()
+//---------------------------------------------------------------------------
+void MEMSystem::SetConfigFile(AnsiString inNewConfigFile)
+{
+   ConfigFile = inNewConfigFile;
+
+}
+//---------------------------------------------------------------------------
+
+
+//---------------------------------------------------------------------------
+// GetNumDACValues()
+//
+// called by: TForm1::GetCellColor()
+//---------------------------------------------------------------------------
+Int32 MEMSystem::GetNumDACValues()
+{
+   return NumDACValues;
+}
+//---------------------------------------------------------------------------
+
+
+//---------------------------------------------------------------------------
+// SetNumDACValues()
+//
+// called by:
+//---------------------------------------------------------------------------
+void MEMSystem::SetNumDACValues(Int32 inNewNumDACValues)
+{
+   NumDACValues = inNewNumDACValues;
+
+}
+//---------------------------------------------------------------------------
+
