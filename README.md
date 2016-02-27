@@ -2,7 +2,7 @@
 
 Tiny droplets of water manipulated and controlled by a computer.
 
-Microfluidics is a branch of engineering that deals with the manipulation of tiny drops of liquid.  It has many applications in biology and chemistry -- test tubes are way too big and bulky for modern batch processes.  While at Bell Labs, I and collaborator Tom Krupenkin developed a device to control the movement of tiny water droplets using electrostatic forces. 
+Microfluidics is a branch of engineering that deals with the manipulation of tiny drops of liquid.  It has many applications in biology and chemistry -- test tubes are way too big and bulky for modern batch processes!  While at Bell Labs, I and collaborator Tom Krupenkin developed a device to control the movement of tiny water droplets using electrostatic forces. 
 
 In the enclosed video, a microscope shows one such droplet moving across the surface of an electrode array.  The droplet is a few mm in size.   During the demonstration, I am controlling the movement of the droplet with a mouse and GUI software (not shown in the video).
 
